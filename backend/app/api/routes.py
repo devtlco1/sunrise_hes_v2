@@ -1,6 +1,9 @@
+import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from gurux_common import TimeoutException
+from gurux_dlms import GXDLMSException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -8,10 +11,13 @@ from app.db import get_db
 from app.schemas import (
     ConnectionEventRead,
     DashboardStats,
+    DlmsReadResult,
+    DlmsRelayResult,
     MeterCreate,
     MeterRead,
     MeterUpdate,
 )
+from app.services import dlms_meter as dlms_ops
 from app.services import meters as meter_service
 
 router = APIRouter()
@@ -95,12 +101,81 @@ async def list_ingress_events(
     return await meter_service.recent_connection_events(session, limit=limit)
 
 
-@router.post("/meters/{meter_id}/read-identity")
-async def read_meter_identity(meter_id: uuid.UUID) -> None:
+def _require_peer_ip(m) -> str:
+    if not m or not m.peer_ip or not str(m.peer_ip).strip():
+        raise HTTPException(
+            status_code=400,
+            detail="يجب تعبئة peer_ip للمقياس (عنوان يقبل اتصال DLMS من السيرفر، غالباً نفس IP الظاهر في الـ ingress).",
+        )
+    return str(m.peer_ip).strip()
+
+
+@router.post("/meters/{meter_id}/read-identity", response_model=DlmsReadResult)
+async def read_meter_identity(
+    meter_id: uuid.UUID, session: AsyncSession = Depends(get_db)
+) -> DlmsReadResult:
     """
-    Placeholder: DLMS/COSEM identity read (Gurux) on the ingress session — next iteration.
+    قراءة هوية + سجلات OBIS إضافية عبر DLMS (اتصال صادر إلى peer_ip:DLMS_TCP_PORT).
     """
-    raise HTTPException(
-        status_code=501,
-        detail=f"DLMS identity read not wired yet (meter_id={meter_id}); see meter-communication-reference-ar.md",
+    m = await meter_service.get_meter(session, meter_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Meter not found")
+    host = _require_peer_ip(m)
+    port = settings.dlms_tcp_port
+    try:
+        data = await asyncio.to_thread(
+            dlms_ops.read_identity_and_registers, settings, host, port
+        )
+    except (TimeoutException, GXDLMSException, OSError, ConnectionError) as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    serial = data.get("serial_number")
+    if serial:
+        await meter_service.update_meter(
+            session, meter_id, MeterUpdate(serial_number=serial)
+        )
+    msg = None
+    if not serial:
+        msg = "لم يُستخرج رقم تسلسلي من OBIS الهوية؛ جرّب LOW auth وكلمة المرور أو واجهة HDLC بدل WRAPPER."
+    return DlmsReadResult(
+        serial_number=serial,
+        serial_source_obis=data.get("serial_source_obis"),
+        registers=data.get("registers") or {},
+        message=msg,
     )
+
+
+@router.post("/meters/{meter_id}/relay/disconnect", response_model=DlmsRelayResult)
+async def relay_disconnect_meter(
+    meter_id: uuid.UUID, session: AsyncSession = Depends(get_db)
+) -> DlmsRelayResult:
+    m = await meter_service.get_meter(session, meter_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Meter not found")
+    host = _require_peer_ip(m)
+    try:
+        await asyncio.to_thread(
+            dlms_ops.relay_disconnect, settings, host, settings.dlms_tcp_port
+        )
+    except (TimeoutException, GXDLMSException, OSError, ConnectionError) as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return DlmsRelayResult(operation="disconnect")
+
+
+@router.post("/meters/{meter_id}/relay/reconnect", response_model=DlmsRelayResult)
+async def relay_reconnect_meter(
+    meter_id: uuid.UUID, session: AsyncSession = Depends(get_db)
+) -> DlmsRelayResult:
+    m = await meter_service.get_meter(session, meter_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Meter not found")
+    host = _require_peer_ip(m)
+    try:
+        await asyncio.to_thread(
+            dlms_ops.relay_reconnect, settings, host, settings.dlms_tcp_port
+        )
+    except (TimeoutException, GXDLMSException, OSError, ConnectionError) as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return DlmsRelayResult(operation="reconnect")

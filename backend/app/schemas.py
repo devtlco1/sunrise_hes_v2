@@ -46,3 +46,17 @@ class ConnectionEventRead(BaseModel):
     peer_port: int | None
     bytes_preview_hex: str | None
     created_at: datetime
+
+
+class DlmsReadResult(BaseModel):
+    ok: bool = True
+    serial_number: str | None = None
+    serial_source_obis: str | None = None
+    registers: dict[str, str] = Field(default_factory=dict)
+    message: str | None = None
+
+
+class DlmsRelayResult(BaseModel):
+    ok: bool = True
+    operation: str
+    message: str | None = None

@@ -1,6 +1,13 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import type { Meter } from "../api";
-import { createMeter, fetchMeters, updateMeter } from "../api";
+import {
+  createMeter,
+  fetchMeters,
+  readMeterIdentity,
+  relayDisconnect,
+  relayReconnect,
+  updateMeter,
+} from "../api";
 
 export default function Meters() {
   const [rows, setRows] = useState<Meter[]>([]);
@@ -8,6 +15,7 @@ export default function Meters() {
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [dlmsMeterId, setDlmsMeterId] = useState<string | null>(null);
   const [scanValue, setScanValue] = useState("");
 
   const [name, setName] = useState("");
@@ -81,12 +89,54 @@ export default function Meters() {
     }
   }
 
-  /** لا نرسل POST للخادم حتى يُفعَّل DLMS — طلب 501 يظهر كخطأ أحمر في Console حتى لو نتعامل معه */
-  function onReadIdentity(_m: Meter) {
+  async function onReadIdentity(m: Meter) {
     setError(null);
-    setInfo(
-      "قراءة الهوية عبر DLMS/COSEM غير مفعّلة بعد. عند الربط مع Gurux سيُستدعى المسار POST /api/v1/meters/{id}/read-identity تلقائياً. حالياً عيّن التسلسل من عمود «التسلسل».",
-    );
+    setInfo(null);
+    if (!m.peer_ip?.trim()) {
+      setError("أدخل peer_ip أولاً (عنوان يقبل DLMS من السيرفر، غالباً منفذ 4059).");
+      return;
+    }
+    setDlmsMeterId(m.id);
+    try {
+      const r = await readMeterIdentity(m.id);
+      const regs = Object.entries(r.registers || {})
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" · ");
+      setInfo(
+        [
+          r.serial_number ? `تسلسل: ${r.serial_number}` : null,
+          r.serial_source_obis ? `(من ${r.serial_source_obis})` : null,
+          r.message,
+          regs ? `سجلات: ${regs}` : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشلت قراءة DLMS");
+    } finally {
+      setDlmsMeterId(null);
+    }
+  }
+
+  async function onRelay(m: Meter, mode: "disconnect" | "reconnect") {
+    setError(null);
+    setInfo(null);
+    if (!m.peer_ip?.trim()) {
+      setError("peer_ip مطلوب للتحكم بالفصل/الوصل.");
+      return;
+    }
+    setDlmsMeterId(m.id);
+    try {
+      if (mode === "disconnect") await relayDisconnect(m.id);
+      else await relayReconnect(m.id);
+      setInfo(mode === "disconnect" ? "تم إرسال أمر الفصل (DLMS)." : "تم إرسال أمر الوصل (DLMS).");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل أمر الريلاي");
+    } finally {
+      setDlmsMeterId(null);
+    }
   }
 
   async function saveSerial(m: Meter, value: string) {
@@ -168,6 +218,12 @@ export default function Meters() {
         </button>
       </form>
 
+      <p className="hint" style={{ marginBottom: "1rem" }}>
+        DLMS صادر: السيرفر يتصل بـ <span className="mono">peer_ip</span> على المنفذ الافتراضي{" "}
+        <span className="mono">4059</span> (غيّره بـ <span className="mono">DLMS_TCP_PORT</span>).
+        منفذ <span className="mono">8766</span> للاتصال الوارد من المقاييس منفصل.
+      </p>
+
       <h2 className="section-title">القائمة</h2>
       <div className="table-wrap">
         <table>
@@ -178,7 +234,7 @@ export default function Meters() {
               <th>IP</th>
               <th>الحالة</th>
               <th>آخر ظهور</th>
-              <th>إجراءات</th>
+              <th>DLMS</th>
             </tr>
           </thead>
           <tbody>
@@ -209,15 +265,35 @@ export default function Meters() {
                     {m.last_seen_at ? new Date(m.last_seen_at).toLocaleString("ar-IQ") : "—"}
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      style={{ fontSize: "0.8rem", padding: "0.35rem 0.6rem" }}
-                      title="سيتم تفعيله مع ربط بروتوكول المقياس"
-                      onClick={() => onReadIdentity(m)}
-                    >
-                      قراءة هوية (قريباً)
-                    </button>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ fontSize: "0.75rem", padding: "0.3rem 0.5rem" }}
+                        disabled={saving || dlmsMeterId === m.id}
+                        onClick={() => onReadIdentity(m)}
+                      >
+                        قراءة
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ fontSize: "0.75rem", padding: "0.3rem 0.5rem" }}
+                        disabled={saving || dlmsMeterId === m.id}
+                        onClick={() => onRelay(m, "disconnect")}
+                      >
+                        فصل
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ fontSize: "0.75rem", padding: "0.3rem 0.5rem" }}
+                        disabled={saving || dlmsMeterId === m.id}
+                        onClick={() => onRelay(m, "reconnect")}
+                      >
+                        وصل
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

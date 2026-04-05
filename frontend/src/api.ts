@@ -87,9 +87,31 @@ export async function fetchIngressEvents(limit = 20): Promise<ConnectionEvent[]>
   return res.json();
 }
 
-/** عند تفعيل DLMS في الخادم: أعد استدعاء هذا من زر «قراءة هوية» */
-export async function readIdentity(meterId: string): Promise<void> {
+export type DlmsReadResult = {
+  ok: boolean;
+  serial_number: string | null;
+  serial_source_obis: string | null;
+  registers: Record<string, string>;
+  message: string | null;
+};
+
+export async function readMeterIdentity(meterId: string): Promise<DlmsReadResult> {
   const res = await fetch(`${API}/meters/${meterId}/read-identity`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function relayDisconnect(meterId: string): Promise<void> {
+  const res = await fetch(`${API}/meters/${meterId}/relay/disconnect`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+}
+
+export async function relayReconnect(meterId: string): Promise<void> {
+  const res = await fetch(`${API}/meters/${meterId}/relay/reconnect`, {
     method: "POST",
   });
   if (!res.ok) throw new Error(await parseError(res));
