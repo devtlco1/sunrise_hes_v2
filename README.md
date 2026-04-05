@@ -25,14 +25,31 @@ docker compose up -d --build
 
 ## نشر على السيرفر (أوبنتو نظيف — مثل طلعتك بالطرفية)
 
-إذا شفت `docker: not found` أو `No such file or directory` لـ `sunrise_hes_v2`، معناه: **ما منصّبت Docker** و/أو **ما سويت `git clone`**. نفّذ بالترتيب (كـ `root`):
+إذا شفت `docker: not found` أو `No such file or directory` لـ `sunrise_hes_v2`، معناه: **ما منصّبت Docker** و/أو **ما سويت `git clone`**.
+
+### إذا ظهر `E: Unable to locate package docker-compose-plugin`
+
+بعض الـ VPS (مثل صور مع مستودعات مقيّدة) **ما يوفّرون** حزمة `docker-compose-plugin`؛ أمر `apt install docker.io docker-compose-plugin` **يفشل كله** ولا يثبّت Docker. استخدم السكربت داخل المشروع (يثبّت `docker.io` + يحمّل **Compose** الرسمي كملحق):
+
+```bash
+apt update && apt install -y git
+cd /root
+test -d sunrise_hes_v2 || git clone https://github.com/devtlco1/sunrise_hes_v2.git
+cd sunrise_hes_v2 && git pull
+bash scripts/install-docker-and-compose.sh
+docker compose up -d --build
+docker compose ps
+curl -s http://127.0.0.1/health
+```
+
+### إذا `docker-compose-plugin` متوفر عندك (عادي على أوبنتو كامل)
 
 ```bash
 apt update && apt install -y git docker.io docker-compose-plugin
 systemctl enable --now docker
 cd /root
-git clone https://github.com/devtlco1/sunrise_hes_v2.git
-cd sunrise_hes_v2
+test -d sunrise_hes_v2 || git clone https://github.com/devtlco1/sunrise_hes_v2.git
+cd sunrise_hes_v2 && git pull
 docker compose up -d --build
 docker compose ps
 curl -s http://127.0.0.1/health
