@@ -23,9 +23,12 @@ export default function Meters() {
   const [peerIp, setPeerIp] = useState("");
   const [notes, setNotes] = useState("");
 
-  const load = useCallback(async () => {
-    setError(null);
-    setInfo(null);
+  const load = useCallback(async (opts?: { clearBanners?: boolean }) => {
+    const clearBanners = opts?.clearBanners !== false;
+    if (clearBanners) {
+      setError(null);
+      setInfo(null);
+    }
     try {
       const list = await fetchMeters();
       setRows(list);
@@ -112,7 +115,7 @@ export default function Meters() {
           .filter(Boolean)
           .join(" "),
       );
-      await load();
+      await load({ clearBanners: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : "فشلت قراءة DLMS");
     } finally {
@@ -226,6 +229,12 @@ export default function Meters() {
       </p>
 
       <h2 className="section-title">القائمة</h2>
+      {dlmsMeterId ? (
+        <div className="info-banner" style={{ marginBottom: "0.75rem" }} role="status">
+          جاري تنفيذ أمر DLMS… قد يستغرق حتى دقيقة (اتصال TCP ثم بروتوكول المقياس). انتظر أو راقب شريط
+          الرسائل أعلى الصفحة.
+        </div>
+      ) : null}
       <div className="table-wrap">
         <table>
           <thead>
@@ -274,7 +283,7 @@ export default function Meters() {
                         disabled={saving || dlmsMeterId === m.id}
                         onClick={() => onReadIdentity(m)}
                       >
-                        قراءة
+                        {dlmsMeterId === m.id ? "… جاري" : "قراءة"}
                       </button>
                       <button
                         type="button"
@@ -283,7 +292,7 @@ export default function Meters() {
                         disabled={saving || dlmsMeterId === m.id}
                         onClick={() => onRelay(m, "disconnect")}
                       >
-                        فصل
+                        {dlmsMeterId === m.id ? "…" : "فصل"}
                       </button>
                       <button
                         type="button"
@@ -292,7 +301,7 @@ export default function Meters() {
                         disabled={saving || dlmsMeterId === m.id}
                         onClick={() => onRelay(m, "reconnect")}
                       >
-                        وصل
+                        {dlmsMeterId === m.id ? "…" : "وصل"}
                       </button>
                     </div>
                   </td>

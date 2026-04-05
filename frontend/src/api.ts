@@ -1,5 +1,8 @@
 const API = "/api/v1";
 
+/** طلبات DLMS قد تطول؛ Nginx عادة ~٧٥ث، نحدّ العميل قريباً من ذلك */
+const DLMS_FETCH_TIMEOUT_MS = 90_000;
+
 export type DashboardStats = {
   total_meters: number;
   online_meters: number;
@@ -30,9 +33,36 @@ async function parseError(res: Response): Promise<string> {
   try {
     const j = await res.json();
     if (typeof j.detail === "string") return j.detail;
+    if (Array.isArray(j.detail)) {
+      return j.detail
+        .map((d: { msg?: string; type?: string }) => d.msg || d.type || JSON.stringify(d))
+        .join(" · ");
+    }
+    if (j.detail != null && typeof j.detail === "object") {
+      return JSON.stringify(j.detail);
+    }
     return res.statusText;
   } catch {
-    return res.statusText;
+    return res.statusText || `HTTP ${res.status}`;
+  }
+}
+
+function abortMessage(): Error {
+  return new Error(
+    "انتهت مهلة الطلب (~٩٠ ثانية). غالباً المقياس لا يستجيب على العنوان/المنفذ (أو جدار ناري).",
+  );
+}
+
+async function postWithDlmsTimeout(path: string): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = window.setTimeout(() => ctrl.abort(), DLMS_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(`${API}${path}`, { method: "POST", signal: ctrl.signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") throw abortMessage();
+    throw e;
+  } finally {
+    window.clearTimeout(t);
   }
 }
 
@@ -96,23 +126,17 @@ export type DlmsReadResult = {
 };
 
 export async function readMeterIdentity(meterId: string): Promise<DlmsReadResult> {
-  const res = await fetch(`${API}/meters/${meterId}/read-identity`, {
-    method: "POST",
-  });
+  const res = await postWithDlmsTimeout(`/meters/${meterId}/read-identity`);
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
 export async function relayDisconnect(meterId: string): Promise<void> {
-  const res = await fetch(`${API}/meters/${meterId}/relay/disconnect`, {
-    method: "POST",
-  });
+  const res = await postWithDlmsTimeout(`/meters/${meterId}/relay/disconnect`);
   if (!res.ok) throw new Error(await parseError(res));
 }
 
 export async function relayReconnect(meterId: string): Promise<void> {
-  const res = await fetch(`${API}/meters/${meterId}/relay/reconnect`, {
-    method: "POST",
-  });
+  const res = await postWithDlmsTimeout(`/meters/${meterId}/relay/reconnect`);
   if (!res.ok) throw new Error(await parseError(res));
 }
