@@ -273,6 +273,16 @@ textarea {
   font-size: 0.9rem;
 }
 
+.info-banner {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(61, 214, 198, 0.35);
+  background: rgba(61, 214, 198, 0.08);
+  color: var(--accent);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
 .mono {
   font-family: var(--mono);
   font-size: 0.78rem;

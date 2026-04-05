@@ -5,6 +5,7 @@ import { createMeter, fetchMeters, readIdentity, updateMeter } from "../api";
 export default function Meters() {
   const [rows, setRows] = useState<Meter[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [scanValue, setScanValue] = useState("");
@@ -16,6 +17,7 @@ export default function Meters() {
 
   const load = useCallback(async () => {
     setError(null);
+    setInfo(null);
     try {
       const list = await fetchMeters();
       setRows(list);
@@ -38,6 +40,7 @@ export default function Meters() {
     }
     setSaving(true);
     setError(null);
+    setInfo(null);
     try {
       await createMeter({
         name: name.trim(),
@@ -63,6 +66,7 @@ export default function Meters() {
     if (!v) return;
     setSaving(true);
     setError(null);
+    setInfo(null);
     try {
       await createMeter({
         name: `مقياس ${v}`,
@@ -79,16 +83,24 @@ export default function Meters() {
 
   async function onReadIdentity(m: Meter) {
     setError(null);
-    try {
-      await readIdentity(m.id);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "فشل الطلب";
-      setError(msg);
+    setInfo(null);
+    const result = await readIdentity(m.id);
+    if (result.kind === "not_implemented") {
+      setInfo(
+        "قراءة الهوية عبر DLMS/COSEM لم تُفعّل بعد في الخادم (هذا متوقع حالياً). الخطوة القادمة: ربط Gurux حسب مرجع المشروع. يمكنك تعيين التسلسل يدوياً من عمود «التسلسل».",
+      );
+      return;
     }
+    if (result.kind === "error") {
+      setError(result.message);
+      return;
+    }
+    setInfo("تمت قراءة الهوية بنجاح.");
   }
 
   async function saveSerial(m: Meter, value: string) {
     setError(null);
+    setInfo(null);
     try {
       await updateMeter(m.id, { serial_number: value.trim() || null });
       await load();
@@ -105,6 +117,7 @@ export default function Meters() {
     <>
       <h1 className="section-title">المقاييس</h1>
       {error ? <div className="error-banner">{error}</div> : null}
+      {info ? <div className="info-banner">{info}</div> : null}
 
       <div className="card" style={{ marginBottom: "1.5rem" }}>
         <h3 style={{ marginTop: 0 }}>إضافة سريعة بالسكانر</h3>
@@ -209,9 +222,10 @@ export default function Meters() {
                       type="button"
                       className="btn btn-ghost"
                       style={{ fontSize: "0.8rem", padding: "0.35rem 0.6rem" }}
+                      title="سيتم تفعيله مع ربط بروتوكول المقياس"
                       onClick={() => onReadIdentity(m)}
                     >
-                      قراءة هوية (DLMS)
+                      قراءة هوية (قريباً)
                     </button>
                   </td>
                 </tr>
