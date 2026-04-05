@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     online_window_seconds: int = 900
 
     # Outbound DLMS (Gurux) — اتصال من السيرفر إلى المقياس على peer_ip:dlms_tcp_port
-    dlms_tcp_port: int = 4059
+    # الافتراضي 8766 ليتوافق مع مقاييس مبرمجة على نفس منفذ الـ ingress
+    dlms_tcp_port: int = 8766
     dlms_client_address: int = 16
     dlms_server_address: int = 1
     dlms_interface: str = "WRAPPER"

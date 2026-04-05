@@ -93,7 +93,7 @@ export default function Meters() {
     setError(null);
     setInfo(null);
     if (!m.peer_ip?.trim()) {
-      setError("أدخل peer_ip أولاً (عنوان يقبل DLMS من السيرفر، غالباً منفذ 4059).");
+      setError("أدخل peer_ip أولاً (عنوان يقبل اتصال DLMS صادر من السيرفر، الافتراضي منفذ 8766).");
       return;
     }
     setDlmsMeterId(m.id);
@@ -220,8 +220,9 @@ export default function Meters() {
 
       <p className="hint" style={{ marginBottom: "1rem" }}>
         DLMS صادر: السيرفر يتصل بـ <span className="mono">peer_ip</span> على المنفذ الافتراضي{" "}
-        <span className="mono">4059</span> (غيّره بـ <span className="mono">DLMS_TCP_PORT</span>).
-        منفذ <span className="mono">8766</span> للاتصال الوارد من المقاييس منفصل.
+        <span className="mono">8766</span> (نفس منفذ الـ ingress عند المقاييس المبرمجة عليه فقط؛ غيّره
+        بـ <span className="mono">DLMS_TCP_PORT</span> إن لزم). إذا كان المقياس يتصل بالسيرفر فقط ولا
+        يستمع على أي منفذ، لن ينجح الاتصال الصادر حتى مع 8766.
       </p>
 
       <h2 className="section-title">القائمة</h2>

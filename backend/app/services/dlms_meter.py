@@ -1,6 +1,6 @@
 """
 Outbound DLMS/COSEM toward meter (TCP). Requires meter.peer_ip and reachable dlms_tcp_port.
-Ingress 8766 is separate (meters pushing); many deployments also expose 4059 for client reads.
+Ingress 8766 (meters → HES) may match dlms_tcp_port when meters accept client on the same port.
 """
 
 from __future__ import annotations

@@ -115,7 +115,7 @@ async def read_meter_identity(
     meter_id: uuid.UUID, session: AsyncSession = Depends(get_db)
 ) -> DlmsReadResult:
     """
-    قراءة هوية + سجلات OBIS إضافية عبر DLMS (اتصال صادر إلى peer_ip:DLMS_TCP_PORT).
+    قراءة هوية + سجلات OBIS إضافية عبر DLMS (اتصال صادر إلى peer_ip:DLMS_TCP_PORT، افتراضي 8766).
     """
     m = await meter_service.get_meter(session, meter_id)
     if not m:
