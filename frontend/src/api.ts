@@ -87,21 +87,10 @@ export async function fetchIngressEvents(limit = 20): Promise<ConnectionEvent[]>
   return res.json();
 }
 
-/** 501 = لم يُربط DLMS بعد — ليس خطأ في النشر */
-export type ReadIdentityResult =
-  | { kind: "success" }
-  | { kind: "not_implemented"; message: string }
-  | { kind: "error"; message: string };
-
-export async function readIdentity(meterId: string): Promise<ReadIdentityResult> {
+/** عند تفعيل DLMS في الخادم: أعد استدعاء هذا من زر «قراءة هوية» */
+export async function readIdentity(meterId: string): Promise<void> {
   const res = await fetch(`${API}/meters/${meterId}/read-identity`, {
     method: "POST",
   });
-  if (res.status === 501) {
-    return { kind: "not_implemented", message: await parseError(res) };
-  }
-  if (!res.ok) {
-    return { kind: "error", message: await parseError(res) };
-  }
-  return { kind: "success" };
+  if (!res.ok) throw new Error(await parseError(res));
 }

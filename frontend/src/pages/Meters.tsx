@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import type { Meter } from "../api";
-import { createMeter, fetchMeters, readIdentity, updateMeter } from "../api";
+import { createMeter, fetchMeters, updateMeter } from "../api";
 
 export default function Meters() {
   const [rows, setRows] = useState<Meter[]>([]);
@@ -81,21 +81,12 @@ export default function Meters() {
     }
   }
 
-  async function onReadIdentity(m: Meter) {
+  /** لا نرسل POST للخادم حتى يُفعَّل DLMS — طلب 501 يظهر كخطأ أحمر في Console حتى لو نتعامل معه */
+  function onReadIdentity(_m: Meter) {
     setError(null);
-    setInfo(null);
-    const result = await readIdentity(m.id);
-    if (result.kind === "not_implemented") {
-      setInfo(
-        "قراءة الهوية عبر DLMS/COSEM لم تُفعّل بعد في الخادم (هذا متوقع حالياً). الخطوة القادمة: ربط Gurux حسب مرجع المشروع. يمكنك تعيين التسلسل يدوياً من عمود «التسلسل».",
-      );
-      return;
-    }
-    if (result.kind === "error") {
-      setError(result.message);
-      return;
-    }
-    setInfo("تمت قراءة الهوية بنجاح.");
+    setInfo(
+      "قراءة الهوية عبر DLMS/COSEM غير مفعّلة بعد. عند الربط مع Gurux سيُستدعى المسار POST /api/v1/meters/{id}/read-identity تلقائياً. حالياً عيّن التسلسل من عمود «التسلسل».",
+    );
   }
 
   async function saveSerial(m: Meter, value: string) {
