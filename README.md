@@ -2,6 +2,15 @@
 
 منصة رأس خط (Head End) أولية: **FastAPI + PostgreSQL + React** مع **استقبال TCP على المنفذ 8766** لتسجيل الاتصالات وربطها بعناوين IP المخزّنة للمقاييس.
 
+## مهم جداً: وين تفتح الداشبورد؟
+
+| العنوان | الاستخدام |
+|---------|-----------|
+| **`http://187.124.187.156/`** (بدون رقم منفذ، يعني منفذ **80**) | **لوحة التحكم والواجهة** — افتحها في Edge/Chrome |
+| **`http://187.124.187.156:8766`** | **لا تفتحها في المتصفح.** هذا المنفذ **TCP خام** لاتصال المقاييس (DLMS)، مو صفحة ويب؛ المتصفح يحاول HTTP فيصير `ERR_CONNECTION_TIMED_OUT` أو لا يعرض شيء حتى لو الخدمة شغّالة |
+
+بعد ما تشغّل Docker على السيرفر، جرّب من المتصفح: **`http://عنوان-السيرفر/`** فقط.
+
 ## التشغيل السريع (Docker)
 
 ```bash
@@ -14,19 +23,24 @@ docker compose up -d --build
 
 غيّر كلمة مرور PostgreSQL في `docker-compose.yml` قبل الإنتاج، وافتح في الجدار الناري: **22** (SSH)، **80** (واجهة)، **8766** (مقاييس).
 
-## نشر على السيرفر (أوبنتو)
+## نشر على السيرفر (أوبنتو نظيف — مثل طلعتك بالطرفية)
 
-**الرفع إلى GitHub لا يشغّل السيرفر تلقائياً.** على الـ VPS بعد تثبيت Docker و Docker Compose Plugin:
+إذا شفت `docker: not found` أو `No such file or directory` لـ `sunrise_hes_v2`، معناه: **ما منصّبت Docker** و/أو **ما سويت `git clone`**. نفّذ بالترتيب (كـ `root`):
 
 ```bash
 apt update && apt install -y git docker.io docker-compose-plugin
-git clone https://github.com/devtlco1/sunrise_hes_v2.git && cd sunrise_hes_v2
+systemctl enable --now docker
+cd /root
+git clone https://github.com/devtlco1/sunrise_hes_v2.git
+cd sunrise_hes_v2
 docker compose up -d --build
 docker compose ps
 curl -s http://127.0.0.1/health
 ```
 
-**جدار ناري (مثال `ufw`):**
+توقّع من `curl` شيء مثل: `{"status":"ok"}`. إذا نجح من السيرفر وما يفتح من جهازك، راجع **جدار ناري خارجي** في لوحة مزوّد الاستضافة (أحياناً لازم تفتح **80** و**8766** من هناك، مو بس `ufw`).
+
+**جدار ناري (مثال `ufw`)** — عندك كان مكتوب `Firewall not enabled` يعني `ufw` مو شغّال حالياً؛ إذا فعّلته لاحقاً:
 
 ```bash
 ufw allow OpenSSH
